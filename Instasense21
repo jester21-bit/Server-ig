@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InstaSense AI - Real Instagram Sentiment Analytics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="bg-[#0b0f19] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-pink-500 selection:text-white">
+
+  <!-- Top Navigation -->
+  <header class="border-b border-slate-800/80 bg-[#0b0f19]/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center shadow-lg shadow-rose-500/20">
+          <i class="fa-brands fa-instagram text-white text-xl"></i>
+        </div>
+        <div>
+          <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-rose-400 via-fuchsia-300 to-indigo-300 bg-clip-text text-transparent">InstaSense AI</span>
+          <span class="text-[10px] ml-1.5 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">Production</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openConfigModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 border border-slate-700 transition">
+          <i class="fa-solid fa-sliders text-rose-400"></i>
+          <span>Backend Endpoint</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
+
+    <!-- Input Post Card -->
+    <div class="glass-card rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+      <div class="absolute -right-16 -top-16 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="max-w-3xl">
+        <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white mb-2">Analisis Sentimen Komentar Instagram</h1>
+        <p class="text-sm text-slate-400 mb-6">Masukkan tautan postingan atau Reels Instagram publik untuk menarik komentar dan menganalisis reaksi audiens secara otomatis.</p>
+        
+        <form id="scrapeForm" onsubmit="handleScrape(event)" class="space-y-4">
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-1">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500">
+                <i class="fa-solid fa-link"></i>
+              </span>
+              <input 
+                type="url" 
+                id="igUrlInput" 
+                required
+                placeholder="https://www.instagram.com/p/DFxyz123/ atau /reel/..." 
+                class="w-full pl-10 pr-4 py-3 bg-slate-900/90 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition"
+              >
+            </div>
+
+            <div class="flex gap-2">
+              <select id="limitSelect" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                <option value="25">25 Komentar</option>
+                <option value="50" selected>50 Komentar</option>
+                <option value="100">100 Komentar</option>
+              </select>
+
+              <button 
+                type="submit" 
+                id="btnScrape" 
+                class="px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 text-white font-semibold text-sm shadow-lg shadow-rose-500/25 flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                <span>Ambil & Analisis</span>
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Current Target Info Banner -->
+        <div id="targetMetaBar" class="hidden mt-4 pt-4 border-t border-slate-800 text-xs flex flex-wrap items-center gap-4 text-slate-400">
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-hashtag text-rose-400"></i> Shortcode: <strong id="lblShortcode" class="text-slate-200">-</strong></span>
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-user text-indigo-400"></i> Author: <strong id="lblOwner" class="text-slate-200">-</strong></span>
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-comments text-emerald-400"></i> Terambil: <strong id="lblCount" class="text-slate-200">0</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert / Status Banner -->
+    <div id="statusAlert" class="hidden rounded-xl p-4 text-sm flex items-start gap-3 transition">
+      <i id="statusIcon" class="fa-solid fa-circle-info mt-0.5"></i>
+      <div class="flex-1" id="statusMessage"></div>
+      <button onclick="dismissStatusAlert()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- Empty State View (Tampil sebelum mencari) -->
+    <div id="emptyState" class="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-slate-800 my-8">
+      <div class="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto mb-4 text-slate-500 text-2xl">
+        <i class="fa-solid fa-chart-line"></i>
+      </div>
+      <h3 class="text-base font-semibold text-white mb-1">Belum Ada Data yang Dianalisis</h3>
+      <p class="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+        Masukkan link postingan Instagram publik pada formulir di atas dan pastikan server backend FastAPI Anda aktif untuk menarik data komentar riil.
+      </p>
+    </div>
+
+    <!-- Analytics Dashboard View (Muncul setelah data ditarik) -->
+    <div id="dashboardView" class="hidden space-y-6">
+
+      <!-- Executive KPI Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- NSS Card -->
+        <div class="glass-card rounded-xl p-4 sm:p-5 relative overflow-hidden">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Sentiment Score</p>
+          <div class="flex items-baseline gap-2 mt-2">
+            <span id="kpiNssVal" class="text-3xl font-extrabold text-white">0</span>
+            <span class="text-xs text-slate-500 font-mono">[-100 s/d +100]</span>
+          </div>
+          <div class="mt-2 text-xs font-medium" id="kpiNssLabel">-</div>
+        </div>
+
+        <!-- Positive Card -->
+        <div class="glass-card rounded-xl p-4 sm:p-5 border-l-4 border-l-emerald-500">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Sentimen Positif</p>
+          <div class="flex items-baseline justify-between mt-2">
+            <span id="kpiPosVal" class="text-2xl sm:text-3xl font-bold text-emerald-400">0</span>
+            <span id="kpiPosPct" class="text-xs text-emerald-500/80 font-semibold">0%</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Apresiasi & reaksi baik</p>
+        </div>
+
+        <!-- Neutral Card -->
+        <div class="glass-card rounded-xl p-4 sm:p-5 border-l-4 border-l-amber-500">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Sentimen Netral</p>
+          <div class="flex items-baseline justify-between mt-2">
+            <span id="kpiNeuVal" class="text-2xl sm:text-3xl font-bold text-amber-400">0</span>
+            <span id="kpiNeuPct" class="text-xs text-amber-500/80 font-semibold">0%</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Pertanyaan & info umum</p>
+        </div>
+
+        <!-- Negative Card -->
+        <div class="glass-card rounded-xl p-4 sm:p-5 border-l-4 border-l-rose-500">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Sentimen Negatif</p>
+          <div class="flex items-baseline justify-between mt-2">
+            <span id="kpiNegVal" class="text-2xl sm:text-3xl font-bold text-rose-400">0</span>
+            <span id="kpiNegPct" class="text-xs text-rose-500/80 font-semibold">0%</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Keluhan & evaluasi kritis</p>
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Donut Distribution -->
+        <div class="glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-white mb-1">Proporsi Sentimen</h3>
+            <p class="text-xs text-slate-400 mb-4">Distribusi polaritas opini audiens</p>
+          </div>
+          <div class="relative h-56 flex items-center justify-center">
+            <canvas id="donutChart"></canvas>
+          </div>
+          <div class="flex justify-center gap-4 text-xs text-slate-400 mt-4 pt-3 border-t border-slate-800">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Positif</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Netral</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Negatif</span>
+          </div>
+        </div>
+
+        <!-- Aspect Breakdown -->
+        <div class="glass-card rounded-2xl p-5 lg:col-span-2 flex flex-col justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-white mb-1">Distribusi Berdasarkan Topik</h3>
+            <p class="text-xs text-slate-400 mb-4">Pengelompokan otomatis aspek produk/konten yang paling disorot audiens</p>
+          </div>
+          <div class="relative h-64 w-full">
+            <canvas id="aspectChart"></canvas>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-800 flex justify-between">
+            <span>*Kategori diekstraksi via semantic lexical matching</span>
+            <span>Kualitas • CS • Harga • Pengiriman • Desain</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keywords Pill Cloud -->
+      <div class="glass-card rounded-2xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-1">Sorotan Kata Kunci (Trigger Words)</h3>
+        <p class="text-xs text-slate-400 mb-4">Kata kunci emosional yang paling sering muncul pada komentar audiens</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-800">
+            <p class="text-xs font-semibold text-emerald-400 mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-thumbs-up"></i> Top Kata Positif
+            </p>
+            <div id="posKeywordCloud" class="flex flex-wrap gap-1.5 text-xs">
+              <span class="text-slate-500 italic text-[11px]">Tidak ada kata dominan</span>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-800">
+            <p class="text-xs font-semibold text-rose-400 mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-thumbs-down"></i> Top Kata Negatif
+            </p>
+            <div id="negKeywordCloud" class="flex flex-wrap gap-1.5 text-xs">
+              <span class="text-slate-500 italic text-[11px]">Tidak ada keluhan dominan</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feed & Comments Table -->
+      <div class="glass-card rounded-2xl p-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-sm font-semibold text-white">Daftar Komentar Instagram</h3>
+            <p class="text-xs text-slate-400">Hasil verifikasi polaritas per komentar</p>
+          </div>
+          
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Filter Pills -->
+            <div class="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-xs">
+              <button onclick="setFilter('ALL')" id="fltAll" class="px-2.5 py-1 rounded-md bg-slate-800 text-white font-medium">Semua</button>
+              <button onclick="setFilter('POSITIVE')" id="fltPos" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-emerald-400 font-medium">Positif</button>
+              <button onclick="setFilter('NEUTRAL')" id="fltNeu" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-amber-400 font-medium">Netral</button>
+              <button onclick="setFilter('NEGATIVE')" id="fltNeg" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-rose-400 font-medium">Negatif</button>
+            </div>
+
+            <!-- Export CSV -->
+            <button onclick="exportToCsv()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-file-csv text-emerald-400"></i> Ekspor CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative mb-3">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 text-xs">
+            <i class="fa-solid fa-search"></i>
+          </span>
+          <input 
+            type="text" 
+            id="commentSearch" 
+            oninput="handleSearchComment(event)" 
+            placeholder="Cari kata di komentar..." 
+            class="w-full pl-8 pr-3 py-2 bg-slate-900/80 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+          >
+        </div>
+
+        <!-- Table Container -->
+        <div class="overflow-x-auto max-h-96 overflow-y-auto border border-slate-800/80 rounded-xl">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900/90 text-slate-400 uppercase font-semibold sticky top-0 border-b border-slate-800">
+              <tr>
+                <th class="px-3.5 py-2.5 w-10">No</th>
+                <th class="px-3.5 py-2.5 w-32">Username</th>
+                <th class="px-3.5 py-2.5">Komentar</th>
+                <th class="px-3.5 py-2.5 w-24">Topik</th>
+                <th class="px-3.5 py-2.5 w-24 text-center">Sentimen</th>
+              </tr>
+            </thead>
+            <tbody id="commentTableBody" class="divide-y divide-slate-800/60">
+              <!-- Baris komentar akan dirender via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Modal Konfigurasi Endpoint Backend -->
+  <div id="configModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-card rounded-2xl p-6 max-w-md w-full border border-slate-700 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-server text-rose-400"></i> Pengaturan Backend Scraper
+        </h3>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">
+        Tentukan alamat endpoint microservice Python FastAPI yang menangani penarikan data komentar Instagram.
+      </p>
+      
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">URL Endpoint:</label>
+          <input 
+            type="text" 
+            id="endpointInput" 
+            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-rose-500 font-mono"
+            placeholder="http://localhost:8000/api/scrape-comments"
+          >
+        </div>
+        <div class="p-3 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] text-slate-400 space-y-1">
+          <p class="font-semibold text-slate-300">Format Rekomendasi:</p>
+          <p>• Local (Laptop/PC): <code class="text-rose-300">http://localhost:8000/api/scrape-comments</code></p>
+          <p>• Cloud (Render/Railway): <code class="text-rose-300">https://api-kamu.onrender.com/api/scrape-comments</code></p>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeConfigModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 rounded-lg">Batal</button>
+        <button onclick="saveConfigModal()" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-xs font-medium text-white rounded-lg">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT LOGIKA ANALISIS MURNI (TANPA DEMO/SIMULASI) -->
+  <script>
+    // State Aplikasi
+    let currentComments = [];
+    let activeFilter = 'ALL';
+    let searchQuery = '';
+    let donutChartInstance = null;
+    let aspectChartInstance = null;
+
+    // Default Endpoint API
+    const DEFAULT_ENDPOINT = 'http://localhost:8000/api/scrape-comments';
+    function getApiEndpoint() {
+      return localStorage.getItem('instasense_endpoint') || DEFAULT_ENDPOINT;
+    }
+
+    // Kamus Sentimen Bahasa Indonesia & Slang Instagram
+    const DICT = {
+      positive: [
+        'bagus', 'keren', 'mantap', 'suka', 'love', 'kece', 'adem', 'rapi', 'puas', 
+        'original', 'ori', 'cepat', 'amanah', 'recommended', 'recomended', 'worth', 'worthit',
+        'terbaik', 'top', 'lucu', 'cantik', 'ganteng', 'ramah', 'gercep', 'enak', 'terjangkau',
+        'murah', 'gokil', 'epic', 'berkualitas', 'mewah', 'aesthetic', 'estetik', 'the best'
+      ],
+      negative: [
+        'jelek', 'kecewa', 'rusak', 'patah', 'cacat', 'bapuk', 'zonk', 'lambat', 'lelet',
+        'lama', 'mahal', 'rugi', 'menyesal', 'tipu', 'parah', 'buruk', 'kasar', 'panas',
+        'sobek', 'bengkok', 'salah', 'kurang', 'pecah', 'nyesel', 'payah', 'kapok'
+      ],
+      negations: ['tidak', 'gak', 'nggak', 'ga', 'bukan', 'kurang', 'jangan'],
+      boosters: ['banget', 'bgt', 'sekali', 'parah', 'super', 'amat', 'beneran', 'bener-bener']
+    };
+
+    // Kamus Aspek/Topik
+    const TOPICS = {
+      Kualitas: ['bahan', 'kain', 'kualitas', 'rusak', 'awet', 'cacat', 'jahitan', 'tebal', 'tipis', 'adem', 'panas', 'ori', 'original'],
+      Pelayanan: ['admin', 'respon', 'pelayanan', 'seller', 'ramah', 'cs', 'chat', 'tanya', 'balas'],
+      Harga: ['harga', 'murah', 'mahal', 'worth', 'diskon', 'promo', 'ongkir', 'biaya'],
+      Pengiriman: ['kirim', 'kurir', 'pengiriman', 'sampai', 'lama', 'lambat', 'cepat', 'ekspedisi', 'packing'],
+      Desain: ['model', 'warna', 'desain', 'motif', 'ukuran', 'size', 'bentuk', 'style', 'estetik', 'kece']
+    };
+
+    // Evaluasi Sentimen Per Komentar
+    function evaluateCommentSentiment(text) {
+      if (!text) return { polarity: 'NEUTRAL', score: 0, matchedWords: [], topics: ['Umum'] };
+
+      const cleanText = text.toLowerCase();
+      const words = cleanText.replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+      
+      let score = 0;
+      let matchedWords = [];
+
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        const isNegated = i > 0 && DICT.negations.includes(words[i - 1]);
+        const isBoosted = (i > 0 && DICT.boosters.includes(words[i - 1])) || (i < words.length - 1 && DICT.boosters.includes(words[i + 1]));
+        const multiplier = (isBoosted ? 1.5 : 1.0) * (isNegated ? -1 : 1);
+
+        if (DICT.positive.includes(w)) {
+          score += (1 * multiplier);
+          matchedWords.push({ word: w, type: multiplier > 0 ? 'pos' : 'neg' });
+        } else if (DICT.negative.includes(w)) {
+          score -= (1 * multiplier);
+          matchedWords.push({ word: w, type: multiplier > 0 ? 'neg' : 'pos' });
+        }
+      }
+
+      // Deteksi Topik
+      const assignedTopics = [];
+      for (const [topicName, keywords] of Object.entries(TOPICS)) {
+        if (keywords.some(k => cleanText.includes(k))) {
+          assignedTopics.push(topicName);
+        }
+      }
+      if (assignedTopics.length === 0) assignedTopics.push('Umum');
+
+      let polarity = 'NEUTRAL';
+      if (score >= 0.75) polarity = 'POSITIVE';
+      else if (score <= -0.75) polarity = 'NEGATIVE';
+
+      return { polarity, score, matchedWords, topics: assignedTopics };
+    }
+
+    // Submit Handler Penarikan Data Asli
+    async function handleScrape(e) {
+      e.preventDefault();
+      const urlInput = document.getElementById('igUrlInput');
+      const limitSelect = document.getElementById('limitSelect');
+      const btn = document.getElementById('btnScrape');
+      const targetUrl = urlInput.value.trim();
+      const limitVal = parseInt(limitSelect.value) || 50;
+
+      if (!targetUrl) return;
+
+      // Ubah UI ke status Loading
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Mengambil data...</span>';
+      dismissStatusAlert();
+
+      const endpoint = getApiEndpoint();
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: targetUrl,
+            max_comments: limitVal
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || `Server error (${response.status})`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.comments || data.comments.length === 0) {
+          throw new Error("Postingan ditemukan, tetapi tidak ada komentar publik yang berhasil ditarik.");
+        }
+
+        // Tampilkan Banner Metadata Postingan
+        document.getElementById('lblShortcode').textContent = data.shortcode || '-';
+        document.getElementById('lblOwner').textContent = data.owner_username ? `@${data.owner_username}` : 'Publik';
+        document.getElementById('lblCount').textContent = data.comments.length;
+        document.getElementById('targetMetaBar').classList.remove('hidden');
+
+        // Analisis Teks Komentar Nyata
+        processRealComments(data.comments);
+
+        showStatusAlert(
+          'success', 
+          `Berhasil mengambil dan menganalisis <strong>${data.comments.length} komentar nyata</strong> dari postingan Instagram.`
+        );
+
+      } catch (err) {
+        console.error("Scrape Error:", err);
+        
+        // Tampilkan pesan error murni, tanpa beralih ke simulasi/demo
+        showStatusAlert(
+          'error',
+          `<strong>Gagal Menarik Data:</strong> ${err.message}<br>
+          <span class="text-xs text-rose-200 mt-1 block">
+            Pastikan: (1) Server backend FastAPI Anda sedang berjalan di <code>${endpoint}</code>, 
+            (2) Postingan bersifat publik, dan (3) URL postingan valid.
+          </span>`
+        );
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i> <span>Ambil & Analisis</span>';
+      }
+    }
+
+    // Memproses Data Komentar Asli
+    function processRealComments(rawCommentsList) {
+      currentComments = rawCommentsList.map((item, idx) => {
+        const text = typeof item === 'string' ? item : (item.text || '');
+        const author = typeof item === 'object' && item.author ? item.author : `user_${idx + 1}`;
+        const analysis = evaluateCommentSentiment(text);
+
+        return {
+          id: idx + 1,
+          author: author,
+          text: text,
+          likes: item.likes || 0,
+          polarity: analysis.polarity,
+          score: analysis.score,
+          topics: analysis.topics,
+          matchedWords: analysis.matchedWords
+        };
+      });
+
+      // Sembunyikan Empty State, Tampilkan Dashboard
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('dashboardView').classList.remove('hidden');
+
+      // Refresh seluruh widget analitik
+      updateKPICards();
+      renderDonutChart();
+      renderAspectChart();
+      renderKeywordCloud();
+      renderCommentsTable();
+    }
+
+    // Hitung & Tampilkan KPI
+    function updateKPICards() {
+      const total = currentComments.length;
+      if (total === 0) return;
+
+      const posCount = currentComments.filter(c => c.polarity === 'POSITIVE').length;
+      const neuCount = currentComments.filter(c => c.polarity === 'NEUTRAL').length;
+      const negCount = currentComments.filter(c => c.polarity === 'NEGATIVE').length;
+
+      const posPct = ((posCount / total) * 100).toFixed(1);
+      const neuPct = ((neuCount / total) * 100).toFixed(1);
+      const negPct = ((negCount / total) * 100).toFixed(1);
+
+      // NSS = ((Positif - Negatif) / Total) * 100
+      const nss = Math.round(((posCount - negCount) / total) * 100);
+
+      document.getElementById('kpiNssVal').textContent = (nss > 0 ? `+${nss}` : nss);
+      document.getElementById('kpiPosVal').textContent = posCount;
+      document.getElementById('kpiPosPct').textContent = `${posPct}%`;
+      document.getElementById('kpiNeuVal').textContent = neuCount;
+      document.getElementById('kpiNeuPct').textContent = `${neuPct}%`;
+      document.getElementById('kpiNegVal').textContent = negCount;
+      document.getElementById('kpiNegPct').textContent = `${negPct}%`;
+
+      const nssLabelEl = document.getElementById('kpiNssLabel');
+      if (nss >= 40) {
+        nssLabelEl.className = 'mt-2 text-xs font-semibold text-emerald-400';
+        nssLabelEl.textContent = 'Apresiasi Sangat Kuat';
+      } else if (nss >= 0) {
+        nssLabelEl.className = 'mt-2 text-xs font-semibold text-amber-400';
+        nssLabelEl.textContent = 'Sentimen Cukup Berimbang';
+      } else {
+        nssLabelEl.className = 'mt-2 text-xs font-semibold text-rose-400';
+        nssLabelEl.textContent = 'Perlu Evaluasi Keluhan';
+      }
+    }
+
+    // Donut Chart
+    function renderDonutChart() {
+      const ctx = document.getElementById('donutChart').getContext('2d');
+      const posCount = currentComments.filter(c => c.polarity === 'POSITIVE').length;
+      const neuCount = currentComments.filter(c => c.polarity === 'NEUTRAL').length;
+      const negCount = currentComments.filter(c => c.polarity === 'NEGATIVE').length;
+
+      if (donutChartInstance) donutChartInstance.destroy();
+
+      donutChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Positif', 'Netral', 'Negatif'],
+          datasets: [{
+            data: [posCount, neuCount, negCount],
+            backgroundColor: ['#10b981', '#f59e0b', '#f43f5e'],
+            borderWidth: 2,
+            borderColor: '#0b0f19'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          cutout: '70%'
+        }
+      });
+    }
+
+    // Aspect Bar Chart
+    function renderAspectChart() {
+      const ctx = document.getElementById('aspectChart').getContext('2d');
+      const aspectNames = Object.keys(TOPICS);
+
+      const posData = [];
+      const negData = [];
+
+      aspectNames.forEach(asp => {
+        const related = currentComments.filter(c => c.topics.includes(asp));
+        posData.push(related.filter(c => c.polarity === 'POSITIVE').length);
+        negData.push(related.filter(c => c.polarity === 'NEGATIVE').length);
+      });
+
+      if (aspectChartInstance) aspectChartInstance.destroy();
+
+      aspectChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: aspectNames,
+          datasets: [
+            { label: 'Positif', data: posData, backgroundColor: '#10b981', borderRadius: 4 },
+            { label: 'Negatif', data: negData, backgroundColor: '#f43f5e', borderRadius: 4 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 }, stepSize: 1 } }
+          },
+          plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } }
+        }
+      });
+    }
+
+    // Pill Cloud Kata Kunci
+    function renderKeywordCloud() {
+      const posMap = {};
+      const negMap = {};
+
+      currentComments.forEach(c => {
+        c.matchedWords.forEach(m => {
+          if (m.type === 'pos') posMap[m.word] = (posMap[m.word] || 0) + 1;
+          else if (m.type === 'neg') negMap[m.word] = (negMap[m.word] || 0) + 1;
+        });
+      });
+
+      const posContainer = document.getElementById('posKeywordCloud');
+      const negContainer = document.getElementById('negKeywordCloud');
+
+      const topPos = Object.entries(posMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
+      const topNeg = Object.entries(negMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
+
+      posContainer.innerHTML = topPos.length > 0 
+        ? topPos.map(([w, cnt]) => `<span class="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">${w} <strong class="text-[10px] opacity-75">(${cnt})</strong></span>`).join('')
+        : '<span class="text-slate-500 italic text-[11px]">Tidak ada kata dominan</span>';
+
+      negContainer.innerHTML = topNeg.length > 0
+        ? topNeg.map(([w, cnt]) => `<span class="px-2 py-1 rounded-md bg-rose-500/10 text-rose-300 border border-rose-500/20">${w} <strong class="text-[10px] opacity-75">(${cnt})</strong></span>`).join('')
+        : '<span class="text-slate-500 italic text-[11px]">Tidak ada keluhan dominan</span>';
+    }
+
+    // Render Tabel Feed
+    function renderCommentsTable() {
+      const tbody = document.getElementById('commentTableBody');
+      tbody.innerHTML = '';
+
+      let filtered = currentComments;
+
+      if (activeFilter !== 'ALL') {
+        filtered = filtered.filter(c => c.polarity === activeFilter);
+      }
+
+      if (searchQuery) {
+        filtered = filtered.filter(c => c.text.toLowerCase().includes(searchQuery.toLowerCase()) || c.author.toLowerCase().includes(searchQuery.toLowerCase()));
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500 italic">Tidak ada komentar yang cocok dengan filter.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach((c, idx) => {
+        let badge = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">Netral</span>';
+        if (c.polarity === 'POSITIVE') badge = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Positif</span>';
+        if (c.polarity === 'NEGATIVE') badge = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">Negatif</span>';
+
+        const row = document.createElement('tr');
+        row.className = "hover:bg-slate-800/40 transition";
+        row.innerHTML = `
+          <td class="px-3.5 py-2.5 text-slate-500">${idx + 1}</td>
+          <td class="px-3.5 py-2.5 font-medium text-slate-200">@${escapeHtml(c.author)}</td>
+          <td class="px-3.5 py-2.5 text-slate-300">${highlightWords(escapeHtml(c.text), c.matchedWords)}</td>
+          <td class="px-3.5 py-2.5 text-slate-400 text-[11px]">${c.topics.join(', ')}</td>
+          <td class="px-3.5 py-2.5 text-center">${badge}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Penanda Kata Pemicu Sentimen
+    function highlightWords(text, matches) {
+      if (!matches || matches.length === 0) return text;
+      let res = text;
+      matches.forEach(m => {
+        const regex = new RegExp(`\\b(${m.word})\\b`, 'gi');
+        const colorClass = m.type === 'pos' ? 'text-emerald-300 font-semibold underline' : 'text-rose-300 font-semibold underline';
+        res = res.replace(regex, `<span class="${colorClass}">$1</span>`);
+      });
+      return res;
+    }
+
+    // Filter & Search Controls
+    function setFilter(type) {
+      activeFilter = type;
+      ['ALL', 'POSITIVE', 'NEUTRAL', 'NEGATIVE'].forEach(t => {
+        const btn = document.getElementById(t === 'ALL' ? 'fltAll' : t === 'POSITIVE' ? 'fltPos' : t === 'NEUTRAL' ? 'fltNeu' : 'fltNeg');
+        if (t === type) {
+          btn.className = "px-2.5 py-1 rounded-md bg-slate-800 text-white font-medium";
+        } else {
+          btn.className = "px-2.5 py-1 rounded-md text-slate-400 hover:text-white font-medium";
+        }
+      });
+      renderCommentsTable();
+    }
+
+    function handleSearchComment(e) {
+      searchQuery = e.target.value;
+      renderCommentsTable();
+    }
+
+    // Ekspor Data ke Format CSV
+    function exportToCsv() {
+      if (currentComments.length === 0) return;
+      let csv = "ID,Username,Komentar,Topik,Sentimen\n";
+      currentComments.forEach(c => {
+        const cleanText = c.text.replace(/"/g, '""');
+        csv += `${c.id},"${c.author}","${cleanText}","${c.topics.join(';')}",${c.polarity}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Instagram_Sentiment_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Helper Modal Pengaturan
+    function openConfigModal() {
+      document.getElementById('endpointInput').value = getApiEndpoint();
+      document.getElementById('configModal').classList.remove('hidden');
+    }
+    function closeConfigModal() {
+      document.getElementById('configModal').classList.add('hidden');
+    }
+    function saveConfigModal() {
+      const val = document.getElementById('endpointInput').value.trim();
+      if (val) localStorage.setItem('instasense_endpoint', val);
+      closeConfigModal();
+      showStatusAlert('info', `Endpoint berhasil diperbarui ke: <code>${getApiEndpoint()}</code>`);
+    }
+
+    // Status Alert UI
+    function showStatusAlert(type, htmlMsg) {
+      const box = document.getElementById('statusAlert');
+      const icon = document.getElementById('statusIcon');
+      const msg = document.getElementById('statusMessage');
+
+      box.classList.remove('hidden', 'bg-rose-500/10', 'border-rose-500/30', 'text-rose-200', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-200', 'bg-blue-500/10', 'border-blue-500/30', 'text-blue-200');
+
+      if (type === 'error') {
+        box.classList.add('bg-rose-500/10', 'border', 'border-rose-500/30', 'text-rose-200');
+        icon.className = 'fa-solid fa-triangle-exclamation text-rose-400 mt-0.5';
+      } else if (type === 'success') {
+        box.classList.add('bg-emerald-500/10', 'border', 'border-emerald-500/30', 'text-emerald-200');
+        icon.className = 'fa-solid fa-circle-check text-emerald-400 mt-0.5';
+      } else {
+        box.classList.add('bg-blue-500/10', 'border', 'border-blue-500/30', 'text-blue-200');
+        icon.className = 'fa-solid fa-circle-info text-blue-400 mt-0.5';
+      }
+
+      msg.innerHTML = htmlMsg;
+    }
+    function dismissStatusAlert() {
+      document.getElementById('statusAlert').classList.add('hidden');
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+      });
+    }
+  </script>
+</body>
+</html>
